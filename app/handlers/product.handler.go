@@ -4,6 +4,7 @@ import (
 	"fiber_be/app/entity"
 	"fiber_be/app/request"
 	"fiber_be/database"
+	"fiber_be/helper"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -65,10 +66,19 @@ func CreateProduct(ctx *fiber.Ctx) error {
 		})
 	}
 
-	var check entity.Product
-	db.Where("code = ?", productRequest.Code).First(&check)
+	if productRequest.Jumlah <= 0 {
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
+			"message": "Jumlah Tidak Boleh 0",
+		})
+	}
 
-	if check.Code == productRequest.Code {
+	generateNumber := helper.RandomNumber(10)
+
+	var check entity.Product
+	db.Where("code = ?", generateNumber).First(&check)
+
+	if check.Code == generateNumber {
 		return ctx.JSON(fiber.Map{
 			"status":  "failed",
 			"message": "Duplicate Product",
@@ -76,7 +86,7 @@ func CreateProduct(ctx *fiber.Ctx) error {
 	}
 
 	product := entity.Product{
-		Code:          productRequest.Code,
+		Code:          generateNumber,
 		Nama:          productRequest.Nama,
 		Jumlah:        productRequest.Jumlah,
 		Deskripsi:     productRequest.Deskripsi,
@@ -168,9 +178,9 @@ func DeleteProduct(ctx *fiber.Ctx) error {
 		})
 	}
 
-	db.Where("product_id = ?", findProduct.ID).Delete(&entity.Note{})
+	db.Unscoped().Where("product_id = ?", findProduct.ID).Delete(&entity.Note{})
 
-	result.Delete(&findProduct)
+	result.Unscoped().Delete(&findProduct)
 	return ctx.JSON(fiber.Map{
 		"status":  "success",
 		"message": "Product Deleted",
@@ -188,6 +198,13 @@ func PostNote(ctx *fiber.Ctx) error {
 		return ctx.JSON(fiber.Map{
 			"status":  "failed",
 			"message": err.Error(),
+		})
+	}
+
+	if NoteRequest.Qty <= 0 {
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
+			"message": "Jumlah Tidak Boleh 0",
 		})
 	}
 
