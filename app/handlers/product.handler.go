@@ -14,9 +14,10 @@ func GetProducts(ctx *fiber.Ctx) error {
 
 	db := database.DB.Db
 
-	db.Preload("Notes").Find(&products)
+	db.Preload("Notes").Order("id desc").Find(&products)
 
-	return ctx.Status(fiber.StatusAccepted).JSON(fiber.Map{
+	return ctx.JSON(fiber.Map{
+		"status":   "success",
 		"message":  "Products Found",
 		"products": products,
 	})
@@ -28,14 +29,16 @@ func GetProductById(ctx *fiber.Ctx) error {
 	db := database.DB.Db
 
 	var check entity.Product
-	result := db.Where("code = ?", code).First(&check)
+	result := db.Preload("Notes").Where("code = ?", code).First(&check)
 	if result.Error != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
 			"message": "Product not found",
 		})
 	}
 
-	return ctx.Status(fiber.StatusAccepted).JSON(fiber.Map{
+	return ctx.JSON(fiber.Map{
+		"status":  "success",
 		"message": "Product Found",
 		"product": check,
 	})
@@ -47,7 +50,8 @@ func CreateProduct(ctx *fiber.Ctx) error {
 
 	err := ctx.BodyParser(&productRequest)
 	if err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
 			"message": err.Error(),
 		})
 	}
@@ -55,7 +59,8 @@ func CreateProduct(ctx *fiber.Ctx) error {
 	Validator := validator.New()
 	validation := Validator.Struct(productRequest)
 	if validation != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
 			"message": validation.Error(),
 		})
 	}
@@ -64,7 +69,8 @@ func CreateProduct(ctx *fiber.Ctx) error {
 	db.Where("code = ?", productRequest.Code).First(&check)
 
 	if check.Code == productRequest.Code {
-		return ctx.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
 			"message": "Duplicate Product",
 		})
 	}
@@ -87,7 +93,8 @@ func CreateProduct(ctx *fiber.Ctx) error {
 
 	db.Create(&note)
 
-	return ctx.Status(fiber.StatusAccepted).JSON(fiber.Map{
+	return ctx.JSON(fiber.Map{
+		"status":  "success",
 		"message": "Product Created",
 		"product": productRequest,
 	})
@@ -101,7 +108,8 @@ func UpdateProduct(ctx *fiber.Ctx) error {
 
 	err := ctx.BodyParser(&productRequest)
 	if err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
 			"message": err.Error(),
 		})
 	}
@@ -109,7 +117,8 @@ func UpdateProduct(ctx *fiber.Ctx) error {
 	Validator := validator.New()
 	validation := Validator.Struct(productRequest)
 	if validation != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
 			"message": validation.Error(),
 		})
 	}
@@ -117,26 +126,29 @@ func UpdateProduct(ctx *fiber.Ctx) error {
 	var findProduct entity.Product
 	result := db.Where("code = ?", code).First(&findProduct)
 	if result.Error != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
 			"message": "Product not found",
 		})
 	}
 
-	if findProduct.Nama == productRequest.Nama {
-		return ctx.Status(fiber.StatusAccepted).JSON(fiber.Map{
+	var check entity.Product
+	db.Where("nama = ?", productRequest.Nama).First(&check)
+	if check.Nama == productRequest.Nama && check.Code != code {
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
 			"message": "Duplicate Product",
 		})
 	}
 
-	updateProduct := entity.Product{
-		Nama:          productRequest.Nama,
-		Jumlah:        productRequest.Jumlah,
-		Deskripsi:     productRequest.Deskripsi,
-		Status_active: productRequest.Status_active,
-	}
-
-	result.Updates(updateProduct)
-	return ctx.Status(fiber.StatusAccepted).JSON(fiber.Map{
+	result.Updates(map[string]interface{}{
+		"Nama":          productRequest.Nama,
+		"Jumlah":        productRequest.Jumlah,
+		"Deskripsi":     productRequest.Deskripsi,
+		"Status_active": productRequest.Status_active,
+	})
+	return ctx.JSON(fiber.Map{
+		"status":  "success",
 		"message": "Product Updated",
 		"product": findProduct,
 	})
@@ -150,7 +162,8 @@ func DeleteProduct(ctx *fiber.Ctx) error {
 	var findProduct entity.Product
 	result := db.Where("code = ?", code).First(&findProduct)
 	if result.Error != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
 			"message": "Product not found",
 		})
 	}
@@ -158,7 +171,8 @@ func DeleteProduct(ctx *fiber.Ctx) error {
 	db.Where("product_id = ?", findProduct.ID).Delete(&entity.Note{})
 
 	result.Delete(&findProduct)
-	return ctx.Status(fiber.StatusAccepted).JSON(fiber.Map{
+	return ctx.JSON(fiber.Map{
+		"status":  "success",
 		"message": "Product Deleted",
 		"product": findProduct,
 	})
@@ -171,7 +185,8 @@ func PostNote(ctx *fiber.Ctx) error {
 
 	err := ctx.BodyParser(&NoteRequest)
 	if err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return ctx.JSON(fiber.Map{
+			"status":  "failed",
 			"message": err.Error(),
 		})
 	}
@@ -183,8 +198,9 @@ func PostNote(ctx *fiber.Ctx) error {
 		result.Update("jumlah", findProduct.Jumlah+NoteRequest.Qty)
 	} else {
 		if NoteRequest.Qty > findProduct.Jumlah {
-			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"message": "Order Over Product QTY",
+			return ctx.JSON(fiber.Map{
+				"status":  "failed",
+				"message": "Gagal Jumlah Barang Tidak Mencukupi",
 			})
 		}
 
@@ -199,7 +215,8 @@ func PostNote(ctx *fiber.Ctx) error {
 
 	db.Create(&note)
 
-	return ctx.Status(fiber.StatusAccepted).JSON(fiber.Map{
-		"message": "Product QTY Updated",
+	return ctx.JSON(fiber.Map{
+		"status":  "success",
+		"message": "Pencatatan Berhasil",
 	})
 }
