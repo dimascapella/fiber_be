@@ -76,9 +76,9 @@ func CreateProduct(ctx *fiber.Ctx) error {
 	generateNumber := helper.RandomNumber(10)
 
 	var check entity.Product
-	db.Where("code = ?", generateNumber).First(&check)
+	db.Where("code = ?", generateNumber).Or("nama = ?", productRequest.Nama).First(&check)
 
-	if check.Code == generateNumber {
+	if check.Code == generateNumber || check.Nama == productRequest.Nama {
 		return ctx.JSON(fiber.Map{
 			"status":  "failed",
 			"message": "Duplicate Product",
